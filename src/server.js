@@ -6,25 +6,12 @@ import crypto from "crypto";
 import axios from "axios";
 
 const app = express();
-app.get("/", (_req, res) => res.status(200).send("ok"));
-app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
+
 app.use(helmet());
 app.use(morgan("dev"));
 app.use(express.json({ limit: "10mb" }));
 
-const port = Number(process.env.PORT || 8080);
-app.listen(port, "0.0.0.0", () => console.log(`Listening on ${port}`));
-
 const upload = multer({ storage: multer.memoryStorage() });
-
-/**
- * ENV VARS YOU WILL SET IN FLY:
- * PORT (Fly sets this)
- * EXTRACTION_WEBHOOK_SECRET (shared with Base44)
- * BASE44_WEBHOOK_URL (full URL to your Base44 handleExtractionWebhook function)
- * AZURE_DI_ENDPOINT (later)
- * AZURE_DI_KEY (later)
- */
 
 function hmacSha256(secret, rawBody) {
   return crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
@@ -51,14 +38,11 @@ async function postToBase44(payload) {
   });
 }
 
-// Health check
-app.get("/health", (_req, res) => res.json({ ok: true }));
+// Root + health
+app.get("/", (_req, res) => res.status(200).send("ok"));
+app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
 
-/**
- * Upload endpoint called by Base44 middleware integration.
- * For now: accept the file, create a job id, return immediately.
- * Next: call Azure DI, then webhook Base44 with extracted fields.
- */
+// Upload endpoint
 app.post("/v1/uploads", upload.single("file"), async (req, res) => {
   try {
     const file = req.file;
@@ -69,17 +53,14 @@ app.post("/v1/uploads", upload.single("file"), async (req, res) => {
     const jobId = `job_${Date.now()}_${crypto.randomBytes(6).toString("hex")}`;
     const requestId = `req_${Date.now()}_${crypto.randomBytes(6).toString("hex")}`;
 
-    // Return quickly so Base44 can mark Upload.middleware_status = queued
+    // Respond quickly
     res.json({
       job_id: jobId,
       request_id: requestId,
       detected_document_type: "UNKNOWN"
     });
 
-    // --- ASYNC WORK (MVP placeholder) ---
-    // 1) Extract using Azure DI (later)
-    // 2) Build payload for Base44 webhook
-    // 3) Sign + POST to Base44 handleExtractionWebhook
+    // MVP placeholder extraction result
     const extracted_fields = {
       note: "Extraction not wired yet. This is a middleware skeleton."
     };
@@ -101,12 +82,10 @@ app.post("/v1/uploads", upload.single("file"), async (req, res) => {
     await postToBase44(webhookPayload);
   } catch (e) {
     console.error(e);
-    // If we already responded, just log. If not, send error.
-    try {
-      res.status(500).json({ error: "upload failed" });
-    } catch {}
+    // If response already sent, just log. Otherwise return 500.
+    if (!res.headersSent) res.status(500).json({ error: "upload failed" });
   }
 });
 
 const port = Number(process.env.PORT || 8080);
-app.listen(port, () => console.log(`Middleware listening on ${port}`));
+app.listen(port, "0.0.0.0", () => console.log(`Listening on ${port}`));
