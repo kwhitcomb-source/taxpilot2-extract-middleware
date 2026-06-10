@@ -42,6 +42,80 @@ async function postToBase44(payload) {
 app.get("/", (_req, res) => res.status(200).send("ok"));
 app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
 
+function requireApiKey(expectedKey) {
+  return (req, res, next) => {
+    const key = req.header("x-api-key");
+    if (!expectedKey) {
+      return res.status(500).json({ ok: false, error: "API_KEY_NOT_CONFIGURED" });
+    }
+    if (!key || key !== expectedKey) {
+      return res.status(401).json({ ok: false, error: "UNAUTHORIZED" });
+    }
+    next();
+  };
+}
+app.post(
+  "/v1/returns/:id/packages/generate",
+  requireApiKey(process.env.FORMS_MIDDLEWARE_API_KEY),
+  async (req, res) => {
+    // Placeholder: return package shell so Base44 can proceed
+    const taxYearProfileId = req.params.id;
+
+    return res.status(200).json({
+      ok: true,
+      mode: "placeholder",
+      message: "Forms engine not configured yet. No PDFs generated.",
+      tax_year_profile_id: taxYearProfileId,
+      packages: [],
+      diagnostics: [
+        {
+          severity: "Info",
+          code: "FORMS_ENGINE_NOT_CONFIGURED",
+          message: "Forms generation is stubbed. Configure engine integration to produce PDFs."
+        }
+      ]
+    });
+  }
+);
+app.post(
+  "/v1/efile/start",
+  requireApiKey(process.env.EFILE_MIDDLEWARE_API_KEY),
+  async (req, res) => {
+    return res.status(200).json({
+      ok: true,
+      mode: "placeholder",
+      message: "E-file engine not configured yet.",
+      submission_id: `stub_${Date.now()}`,
+      status: "NotStarted"
+    });
+  }
+);
+
+app.post(
+  "/v1/efile/submit",
+  requireApiKey(process.env.EFILE_MIDDLEWARE_API_KEY),
+  async (req, res) => {
+    return res.status(200).json({
+      ok: false,
+      mode: "placeholder",
+      error: "EFILE_ENGINE_NOT_CONFIGURED",
+      message: "E-file submit is stubbed. Configure engine integration to submit returns."
+    });
+  }
+);
+
+app.get(
+  "/v1/efile/status",
+  requireApiKey(process.env.EFILE_MIDDLEWARE_API_KEY),
+  async (req, res) => {
+    return res.status(200).json({
+      ok: true,
+      mode: "placeholder",
+      status: "NotStarted",
+      message: "E-file status is stubbed because engine is not configured."
+    });
+  }
+);
 // Upload endpoint
 app.post("/v1/uploads", upload.single("file"), async (req, res) => {
   try {
